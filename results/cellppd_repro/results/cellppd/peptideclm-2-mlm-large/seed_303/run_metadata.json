@@ -1,0 +1,27 @@
+{
+  "model_name": "/kaggle/working/models/peptideclm-2-mlm-large",
+  "seed": 303,
+  "command": [
+    "python",
+    "-u",
+    "/kaggle/working/project/their_repo/training/02_classification_benchmarks_training_code/scripts/classification_finetuning_v2.py",
+    "--dataset",
+    "CellPPD",
+    "--gpu",
+    "0",
+    "--gpu_index",
+    "0",
+    "--model_name",
+    "/kaggle/working/models/peptideclm-2-mlm-large",
+    "--data_dir",
+    "/kaggle/working/project/their_repo/data",
+    "--save_path",
+    "/kaggle/working/results/cellppd/peptideclm-2-mlm-large/seed_303",
+    "--output_dir",
+    "/kaggle/working/results/cellppd/peptideclm-2-mlm-large/seed_303",
+    "--log_dir",
+    "/tmp/logs/peptideclm-2-mlm-large/seed_303",
+    "--seed",
+    "303"
+  ]
+}

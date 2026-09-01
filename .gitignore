@@ -1,0 +1,40 @@
+# Model weights -- not ours to redistribute, and large.
+# Teacher/student checkpoints come from https://huggingface.co/aaronfeller
+models/
+*.safetensors
+*.ckpt
+*.pt
+
+# The authors' repository. Clone it separately:
+#   https://github.com/AaronFeller/PeptideCLM-2
+their_repo/
+
+# The paper PDF (bioRxiv, CC-BY) -- linked in the README instead.
+paper/
+
+# Derived data. Rebuildable with kaggelscripts/kaggle_build_pretrain_subset.ipynb
+# and kaggle_build_teacher_cache.ipynb.
+data/
+data-*/
+cache/
+tmp_probe/
+*.parquet
+*.npz
+*.npy
+
+# Archives / scratch
+*.tar.gz
+results-*/
+Distillation_code.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+kaggelscripts/kaggle_align_gcpnet_ema.ipynb
