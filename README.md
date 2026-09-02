@@ -70,9 +70,9 @@ The student demonstrably learns the teacher's behaviour: KL divergence to the
 teacher drops by 1.8x to 4.3x across four held-out benchmark sets, while the
 control drifts away on all of them.
 
-Whether that translates into better downstream task performance is the open
-question, and the current answer is **not yet** — see the report for the
-full-finetune PAMPA results and the caveats attached to them.
+Whether that translates into better downstream task performance has now been
+tested on PAMPA permeability at two training budgets, and the answer is **no** —
+the distilled student is behind its own starting point. See the report.
 
 ## Reproducing
 

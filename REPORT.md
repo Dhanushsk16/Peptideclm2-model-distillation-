@@ -308,37 +308,84 @@ against the teacher's 0.040, with treatment − warm-start self-similarity +0.01
 
 ### Downstream: PAMPA permeability
 
-Full finetuning (the authors' protocol for this benchmark — the entire backbone
-trains), clusters 1 and 6 held out, 5 inner folds ensembled, seed 101.
+Full finetuning (their protocol for this benchmark — the entire backbone trains),
+clusters 1 and 6 held out, 5 inner folds ensembled, seed 101. Two runs at
+different training budgets.
 
-| model | cluster 1 R² | cluster 6 R² |
+**Run 1** — `max_steps=10000`. Every job stopped on the step cap at ~36 epochs
+(28–43 depending on train-set size); `max_epochs=250` was never approached and
+`patience=20` never fired.
+
+**Run 2** — `max_epochs=100, max_steps=36000`, ~2.8× the budget. Both numbers were
+raised together because in their script `max_steps` sets the LR decay horizon as
+well as the hard cap (`total_steps = max(1, int(args.max_steps))`, and argparse
+never leaves it `None`, so the steps-per-epoch branch is dead code). Raising only
+the cap would leave the LR near peak when early stopping fires.
+
+R² on the held-out cluster, from the 5-fold ensemble:
+
+| model | cluster | run 1 (~36 ep) | run 2 (100 ep) |
+|---|---|---|---|
+| warm-start | 1 | 0.060 | **0.066** |
+| warm-start | 6 | 0.296 | **0.320** |
+| treatment | 1 | 0.045 | 0.011 |
+| treatment | 6 | 0.232 | 0.269 |
+
+Distillation effect (treatment − warm-start):
+
+| | cluster 1 | cluster 6 |
 |---|---|---|
-| **treatment** | 0.045 | 0.232 |
-| **warm-start** | 0.060 | 0.296 |
-| their MLM-small (published, 3 runs) | −0.454 ± 0.155 | 0.500 ± 0.012 |
-| their MLM-large (published, 3 runs) | −0.309 ± 0.213 | 0.847 ± 0.021 |
+| run 1 | −0.015 | −0.064 |
+| run 2 | **−0.055** | **−0.050** |
 
-**Distillation did not help.** Treatment loses to warm-start on both clusters
-(−0.015 and −0.064). The pre-registered threshold for "learned something" was
-≥ +0.05; the sign is wrong.
+**Distillation did not help, and more training did not change that.** Both models
+improved with the larger budget — warm-start 0.296 → 0.320 on cluster 6, treatment
+0.232 → 0.269 — so the extra epochs were doing something, but the gap did not
+close. Treatment is behind warm-start on both clusters in both runs, four out of
+four. Spearman agrees (run 2: warm-start 0.303 / 0.618 vs treatment 0.247 /
+0.598), as does RMSE (0.865 vs 0.897 on cluster 6), so the result is not an
+artifact of R²'s variance denominator.
 
-Three caveats, all material:
+The undertraining caveat raised after run 1 is therefore resolved, and it was not
+the explanation.
+
+For reference, the authors' published numbers on the same clusters, recomputed
+from their shipped predictions:
+
+| model | cluster 1 | cluster 6 |
+|---|---|---|
+| their MLM-small (3 runs) | −0.454 ± 0.155 | 0.500 ± 0.012 |
+| their MLM-large (3 runs) | −0.309 ± 0.213 | 0.847 ± 0.021 |
+
+Three caveats that still stand:
 
 - **Cluster 1 is noise-dominated.** Their own three runs of an identical model span
-  0.38 R² (−0.487, −0.625, −0.250). No model in the comparison predicts it.
-- **Our absolute numbers are below theirs on cluster 6** (0.296 vs 0.500) using the
-  *same released weights*, so something in the finetuning protocol differs.
-- **Every job was truncated by `max_steps=10000`**, i.e. ~36 epochs, never reaching
-  `max_epochs=250` and never triggering early stopping. Both arms were still
-  descending. The treatment-vs-warm-start comparison is internally fair, but it
-  compares two undertrained models.
+  0.38 R² (−0.487, −0.625, −0.250). No model in the comparison predicts it. On
+  cluster 1 the individual fold models average R² ≈ −0.14 — worse than predicting
+  the mean — and only the ensemble reaches a mildly positive number.
+- **Our absolute numbers are below theirs on cluster 6** (0.320 vs 0.500) using the
+  *same released weights*, so something in the finetuning protocol differs. Their
+  headline figure is also a *pooled* R² over all 6,701 molecules, not per cluster.
+- **Single seed.** Given cluster 1's spread, ≥3 seeds are needed before per-cluster
+  differences of ~0.05 mean much.
 
-A LoRA variant (`distill/pampa_lora.py`) is written but not yet run. It is the more
-informative test: with the trunk frozen and only ~2.2% of parameters adapting, the
-quality of the frozen representation determines performance, whereas full
-finetuning can reshape a mediocre representation given enough capacity.
+One thing I could not establish: run 2's logs contain no `Trainer.fit stopped`
+lines, so whether jobs ended on patience or on the 100-epoch cap is unknown.
 
----
+### Next: LoRA
+
+`distill/pampa_lora.py` and `kaggelscripts/kaggle_pampa_lora_warmstart.ipynb`
+implement the same protocol with the backbone **frozen** and LoRA adapters
+(r=16, α=32 on `qkv_proj`, ~2.2% of weights trainable), config lifted verbatim
+from their classification script. Head, loss, optimizer, schedule, batch size,
+early stopping and fold logic are unchanged; only the trainable parameter set
+differs.
+
+This is the more informative test. Full finetuning lets 31.9M parameters reshape a
+mediocre representation into a good one, which can mask differences between
+backbones — plausibly why the two arms landed so close above. With the trunk
+frozen, downstream performance is governed by the quality of the frozen features,
+which is exactly what distillation was supposed to improve.
 
 ## 8. Corrections
 
@@ -400,12 +447,26 @@ independent ways — cached targets, live teacher on training molecules, and liv
 teacher on four held-out benchmark sets — and the control arm rules out "more
 training" as the explanation.
 
-It has not yet been shown to make the student **better at anything**. The one
-downstream benchmark run so far shows no gain, under conditions (truncated
-training, single seed, one noisy cluster) that limit what can be concluded.
+It has not been shown to make the student **better at anything**. PAMPA has now
+been run at two training budgets, and the distilled model is behind its own
+starting point on both held-out clusters in both runs. The undertraining
+explanation is ruled out.
 
-The next things worth doing, in order: rerun PAMPA with a step budget that allows
-convergence and ≥3 seeds; run the LoRA variant, where frozen-representation quality
-is what is actually being measured; and evaluate on THPep and AmpHGT, where the
-teacher's advantage over fingerprint baselines is largest and the distillation
-signal was strongest.
+So the current finding is a negative one, and a fairly clean one: matching a larger
+model's token distributions and representation geometry is **not sufficient** to
+transfer its downstream capability, at least on this task at this scale. Every
+intrinsic measure says the student moved toward the teacher; the benchmark says it
+gained nothing by doing so.
+
+What would sharpen it, in order:
+
+1. **LoRA evaluation** (code ready). With the backbone frozen, representation
+   quality is what is actually being measured, rather than the finetuner's ability
+   to repair it.
+2. **≥3 seeds.** Cluster 1's run-to-run spread in the authors' own data is ±0.38 R²,
+   so single-seed differences there carry little weight.
+3. **THPep and AmpHGT**, where the teacher's margin over fingerprint baselines is
+   largest and the distillation signal was strongest (KL 4.3× and 2.1×
+   respectively, versus 1.8× on PAMPA).
+4. **Reconcile cluster 6 against their published 0.500** using identical weights,
+   which would tell us whether our absolute numbers can be quoted at all.

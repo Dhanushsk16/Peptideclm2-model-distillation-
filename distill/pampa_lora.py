@@ -162,11 +162,14 @@ def main():
     ap.add_argument("--seed", type=int, default=101)
     ap.add_argument("--gpu_index", type=int, default=0)
     ap.add_argument("--batch_size", type=int, default=16)
-    ap.add_argument("--max_epochs", type=int, default=250)
-    # Their default. Anything below one epoch stops training mid-epoch, so the
-    # epoch-end validation never runs and EarlyStopping raises on a missing
-    # val_rmse. Learned the hard way on the full-finetune run.
-    ap.add_argument("--max_steps", type=int, default=10000)
+    # Budget. Unlike their script, total_steps here is min(epochs*steps_per_epoch,
+    # max_steps), so the LR horizon and the cap stay coupled automatically. Still
+    # keep max_steps above one epoch: below that, training stops mid-epoch, the
+    # epoch-end validation never runs, val_rmse is never logged, and EarlyStopping
+    # raises. LoRA trains ~2% of the weights and generally needs MORE steps than
+    # full finetuning, so the budget is the same 100 epochs.
+    ap.add_argument("--max_epochs", type=int, default=100)
+    ap.add_argument("--max_steps", type=int, default=36000)
     ap.add_argument("--patience", type=int, default=20)
     ap.add_argument("--learning_rate", type=float, default=3e-4)
     ap.add_argument("--weight_decay", type=float, default=1e-3)

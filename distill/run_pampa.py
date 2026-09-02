@@ -55,10 +55,19 @@ def ensure_shim(repo_root):
 
 
 def load_frame(repo_root, script_dir, data_csv):
-    """Use THEIR normalizer so row order matches what the worker writes."""
+    """Use THEIR normalizer so row order matches what the worker writes.
+
+    finetune_ensemble.py is located from REPO_ROOT, not from --script. It used to
+    be found next to the worker script, which happened to work only while the
+    worker WAS their finetune_ensemble.py; driving pampa_lora.py instead made
+    script_dir point at distill/ and the import failed.
+    """
     ensure_shim(repo_root)
     sys.path.insert(0, repo_root)
     sys.path.insert(0, script_dir)
+    reg = os.path.join(repo_root, "training", "01_regression_benchmarks_training_code")
+    if os.path.isdir(reg):
+        sys.path.insert(0, reg)
     import finetune_ensemble as fe
     return fe.normalize_perm_frame(pd.read_csv(data_csv)), fe
 
@@ -77,8 +86,27 @@ def main():
                     help="what to pin to a GPU. 'model' runs each variant on its "
                          "own card (both clusters), which keeps the arms on "
                          "identical hardware and finishes them together.")
-    ap.add_argument("--max-epochs", type=int, default=250)
-    ap.add_argument("--max-steps", type=int, default=10000)
+    # BUDGET. In their script max_steps does double duty:
+    #     if args.max_steps is not None:
+    #         total_steps = max(1, int(args.max_steps))   <- LR decay horizon
+    #     ...
+    #     max_steps=total_steps                           <- and the hard cap
+    # and argparse gives it default=10000, so it is never None and the
+    # steps-per-epoch branch is dead code. Their default therefore pinned BOTH
+    # the cap and the cosine horizon to 10,000 steps.
+    #
+    # Measured on the first run: every job stopped on `max_steps=10000` reached,
+    # i.e. ~36 epochs (28-43 depending on train-set size). max_epochs=250 was
+    # never approached and patience=20 never fired -- validation loss was still
+    # improving when training was cut off.
+    #
+    # These two must be raised TOGETHER or the schedule breaks: raising only the
+    # cap leaves the LR near peak when early stopping fires, so the model never
+    # gets its annealing phase. At 231-355 steps/epoch across the folds,
+    # 100 epochs x ~355 = ~36,000 keeps the two roughly coincident, so epochs
+    # (or patience) end the run rather than the step cap.
+    ap.add_argument("--max-epochs", type=int, default=100)
+    ap.add_argument("--max-steps", type=int, default=36000)
     ap.add_argument("--patience", type=int, default=20)
     a = ap.parse_args()
 
