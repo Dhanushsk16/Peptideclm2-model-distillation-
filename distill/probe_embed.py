@@ -43,13 +43,30 @@ def main():
     if a.init:
         from student import Student, patch_sdpa_dtype
         patch_sdpa_dtype()
-        m = Student(a.init)
+        sd = None
         if a.ckpt:
             st = torch.load(a.ckpt, map_location="cpu", weights_only=False)
-            m.load_state_dict(st["model"])
+            sd = st["model"]
             print("loaded %s @ step %s" % (a.ckpt, st.get("gstep", "?")))
+
+        # TWO CHECKPOINT LAYOUTS. The cached three-term runs trained a Student
+        # wrapper, so their keys are backbone.* plus mtr_head.*. The live-KD run
+        # trained a bare AutoModel and its keys have no prefix. Loading one into
+        # the other raises on every key, so pick the container from the keys
+        # rather than from a flag the caller has to remember to set.
+        if sd is not None and not any(k.startswith("backbone.") for k in sd):
+            m = AutoModel.from_pretrained(a.init, trust_remote_code=True,
+                                          use_safetensors=True)
+            m.load_state_dict(sd)                    # strict: any drift must raise
+            fwd = lambda i, t: m(input_ids=i, attention_mask=t).mean_pool
+            print("   layout: bare AutoModel (live-KD)")
+        else:
+            m = Student(a.init)
+            if sd is not None:
+                m.load_state_dict(sd)
+                print("   layout: Student wrapper (cached KD)")
+            fwd = lambda i, t: m(i, t)["mean_pool"]
         m = m.cuda().eval()
-        fwd = lambda i, t: m(i, t)["mean_pool"]
     else:
         m = AutoModel.from_pretrained(a.model, trust_remote_code=True,
                                       use_safetensors=True).cuda().eval()

@@ -25,23 +25,49 @@ TMP = os.path.join(R, "tmp_probe")
 os.makedirs(TMP, exist_ok=True)
 INIT = glob.glob(R + "/models/models--aaronfeller--peptideclm-2-mlm-small/snapshots/*")[0]
 TEACH = glob.glob(R + "/models/models--aaronfeller--peptideclm-2-mlm-large/snapshots/*")[0]
-CK = R + "/results/results/distill/%s/latest.pt"
+CK = R + "/results/distill/%s/latest.pt"
+KD_LIVE = R + "/results/kd_live/student_final.pt"
 
 # (extra CLI args for probe_embed.py) -- teacher is a plain HF dir, students need
 # --init and optionally --ckpt.
+#
+#   warm-start  their released 32M, untouched. The baseline every student starts
+#               from, so only movement away from it is attributable to training.
+#   treatment   cached KD + MTR + SPKD, top-16 targets, one fixed mask.
+#   control     same data and schedule, hard labels only -- no teacher.
+#   kd-live     pure Hinton KD, full 405-way targets, fresh mask each epoch.
 MODELS = {
     "teacher":    ["--model", TEACH],
     "warm-start": ["--init", INIT],
     "treatment":  ["--init", INIT, "--ckpt", CK % "treatment"],
     "control":    ["--init", INIT, "--ckpt", CK % "control"],
+    "kd-live":    ["--init", INIT, "--ckpt", KD_LIVE],
 }
+STUDENTS = ["warm-start", "treatment", "control", "kd-live"]
+for _p in [CK % "treatment", CK % "control", KD_LIVE]:
+    assert os.path.exists(_p), "missing checkpoint: " + _p
 
 
 def embed(tag, model_args, smis, batch=16):
+    """Embed `smis` with one model in its own process, caching the result.
+
+    The cache is keyed only by tag, so it MUST be invalidated when the molecule
+    set changes -- otherwise a path or seed change silently scores new molecules
+    against old vectors. Compare the stored SMILES and recompute on any mismatch.
+    """
     sp = os.path.join(TMP, tag + "_smiles.npy")
     op = os.path.join(TMP, tag + ".npy")
-    np.save(sp, np.array(smis, dtype=object))
-    if not os.path.exists(op):
+    want = np.array(smis, dtype=object)
+    stale = True
+    if os.path.exists(op) and os.path.exists(sp):
+        prev = np.load(sp, allow_pickle=True)
+        stale = len(prev) != len(want) or not (prev == want).all()
+        if stale:
+            print("   %s: cached embeddings are for different molecules, recomputing" % tag)
+    np.save(sp, want)
+    if stale or not os.path.exists(op):
+        if os.path.exists(op):
+            os.remove(op)
         r = subprocess.run([sys.executable, "probe_embed.py"] + list(model_args) +
                            ["--smiles-npy", sp, "--out", op, "--tokenizer", INIT,
                             "--batch", str(batch)],
@@ -62,8 +88,8 @@ def gram(x):
 
 
 # ---------------------------------------------------------------- molecule sets
-d = pd.read_parquet(R + "/data-20260829T131646Z-1-001/data/pretrain_subset_2M/"
-                        "pretrain_subset_2M.parquet", columns=["source", "smiles", "n_tokens"])
+d = pd.read_parquet(R + "/data/pretrain_subset_2M/pretrain_subset_2M.parquet",
+                    columns=["source", "smiles", "n_tokens"])
 z = np.load(R + "/cache/shard_00040.npz"); mi = z["mol_idx"]
 
 N = 1024
@@ -87,7 +113,7 @@ print("\n=== GEOMETRY vs teacher (%d molecules, %d pairs) ===" % (N, len(iu[0]))
 print("%-12s %10s %11s %11s %10s %11s"
       % ("model", "SPKD", "RAW|dcos|", "CENTERED", "Spearman", "cross-cos"))
 print("%-12s %10s %11s %11s %10s %11.4f" % ("teacher", "-", "-", "-", "-", t.mean()))
-for k in ("warm-start", "treatment", "control"):
+for k in STUDENTS:
     C = cos(Z[k]); s = C[iu]
     print("%-12s %10.3e %11.4f %11.4f %10.4f %11.4f"
           % (k, (gram(Z[k]) - gram(Z["teacher"])).pow(2).mean().item(),
@@ -119,7 +145,7 @@ ZR = {k: embed("res_" + k, v, flat) for k, v in MODELS.items()}
 print("\n=== RESPELLING INVARIANCE (%d peptides x 8 spellings) ===" % len(mols))
 print("%-12s %9s %9s %9s" % ("model", "self", "cross", "MARGIN"))
 per = {}
-for k in ("teacher", "warm-start", "treatment", "control"):
+for k in ["teacher"] + STUDENTS:
     C = cos(ZR[k])
     same = lab[:, None] == lab[None, :]; off = ~np.eye(len(flat), dtype=bool)
     sc, cc = C[same & off].mean(), C[~same].mean()
@@ -127,9 +153,13 @@ for k in ("teacher", "warm-start", "treatment", "control"):
                        [np.triu_indices(8, 1)].mean() for i in range(len(mols))])
     print("%-12s %9.4f %9.4f %9.4f" % (k, sc, cc, sc - cc))
 
-print("\ntreatment - control, per-molecule self-cos: %+.4f (paired t p=%.2g)"
-      % ((per["treatment"] - per["control"]).mean(),
-         st.ttest_rel(per["treatment"], per["control"]).pvalue))
-print("treatment - warm-start:                    %+.4f (p=%.2g)"
-      % ((per["treatment"] - per["warm-start"]).mean(),
-         st.ttest_rel(per["treatment"], per["warm-start"]).pvalue))
+# Paired over the SAME peptides, so the test asks whether training moved each
+# molecule's self-similarity, not whether two independent means differ.
+print("\nper-molecule self-cosine, paired against the warm start each began from:")
+for k in ("treatment", "control", "kd-live"):
+    dlt = per[k] - per["warm-start"]
+    print("   %-10s - warm-start  %+.4f  (paired t p=%.2g)"
+          % (k, dlt.mean(), st.ttest_rel(per[k], per["warm-start"]).pvalue))
+print("   %-10s - treatment   %+.4f  (paired t p=%.2g)"
+      % ("kd-live", (per["kd-live"] - per["treatment"]).mean(),
+         st.ttest_rel(per["kd-live"], per["treatment"]).pvalue))
