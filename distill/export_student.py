@@ -37,12 +37,21 @@ def export(ckpt_path, init_dir, out_dir, tag):
     else:
         st = torch.load(ckpt_path, map_location="cpu", weights_only=False)
         sd = st["model"] if "model" in st else st
-        # Student wraps the released encoder as self.backbone, so stripping that
-        # prefix restores the original key names exactly.
-        bb = {k[len("backbone."):]: v.contiguous()
-              for k, v in sd.items() if k.startswith("backbone.")}
-        dropped = sorted({k.split(".")[0] for k in sd if not k.startswith("backbone.")})
-        assert bb, "no backbone.* keys found -- is this a Student checkpoint?"
+        # TWO CHECKPOINT LAYOUTS.
+        #   cached KD  trained a Student wrapper -> backbone.* plus mtr_head.*
+        #   live KD    trained a bare AutoModel  -> no prefix at all
+        # Stripping "backbone." restores the released key names in the first case;
+        # in the second they are already correct and there is no head to drop.
+        if any(k.startswith("backbone.") for k in sd):
+            bb = {k[len("backbone."):]: v.contiguous()
+                  for k, v in sd.items() if k.startswith("backbone.")}
+            dropped = sorted({k.split(".")[0] for k in sd if not k.startswith("backbone.")})
+        else:
+            bb = {k: v.contiguous() for k, v in sd.items()}
+            dropped = []
+        assert bb, "empty state_dict in " + ckpt_path
+        assert any(k.startswith("model.embed") for k in bb), \
+            "unrecognised key layout: %s" % sorted(bb)[:3]
 
         for f in os.listdir(init_dir):
             if f != "model.safetensors":
@@ -68,18 +77,30 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--which", default="latest.pt",
                     help="latest.pt (resumable) or student_final.pt")
+    ap.add_argument("--arms", default="treatment,control",
+                    help="subdirectories of --runs to export")
+    ap.add_argument("--also", action="append", default=[], metavar="NAME=CKPT",
+                    help="a checkpoint outside --runs, e.g. kdlive=../results/"
+                         "kd_live/student_final.pt. Repeatable. NAME=CKPT rather "
+                         "than NAME:CKPT because Windows paths carry a colon.")
     a = ap.parse_args()
 
     made = {}
     made["warmstart"] = export(None, a.init,
                                os.path.join(a.out, "peptideclm-2-mlm-small-warmstart"),
                                "warmstart")
-    for arm in ("treatment", "control"):
+    for arm in [x for x in a.arms.split(",") if x]:
         ck = os.path.join(a.runs, arm, a.which)
         if not os.path.exists(ck):
             print("SKIP %s: %s not found" % (arm, ck)); continue
         made[arm] = export(ck, a.init,
                            os.path.join(a.out, "peptideclm-2-mlm-small-" + arm), arm)
+    for spec in a.also:
+        name, _, ck = spec.partition("=")
+        assert ck, "--also expects NAME=CKPT, got %r" % spec
+        assert os.path.exists(ck), "checkpoint not found: " + ck
+        made[name] = export(ck, a.init,
+                            os.path.join(a.out, "peptideclm-2-mlm-small-" + name), name)
     json.dump(made, open(os.path.join(a.out, "exported.json"), "w"), indent=2)
     print("\n%d models exported" % len(made))
 
