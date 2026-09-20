@@ -1,0 +1,15 @@
+{
+  "model": "teacher",
+  "device": "cuda",
+  "dtype": "fp32",
+  "batch": 16,
+  "params_M": 336.7,
+  "n_molecules": 300,
+  "n_real_tokens": 28464,
+  "sweep_s_mean": 13.2282,
+  "sweep_s_sd": 0.0877,
+  "ms_per_molecule": 44.094,
+  "molecules_per_s": 22.7,
+  "tokens_per_s": 2151.8,
+  "peak_mem_MB": 1528.3
+}

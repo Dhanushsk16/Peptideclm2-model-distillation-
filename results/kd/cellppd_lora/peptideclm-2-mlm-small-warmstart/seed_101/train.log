@@ -1,0 +1,150 @@
+Seed set to 101
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 4554.38it/s]
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+┏━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name      ┃ Type                          ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model     │ PeftModelForFeatureExtraction │ 32.1 M │ train │     0 │
+│ 1 │ fc1       │ Linear                        │  262 K │ train │     0 │
+│ 2 │ act       │ SiLU                          │      0 │ train │     0 │
+│ 3 │ dropout   │ Dropout                       │      0 │ train │     0 │
+│ 4 │ fc2       │ Linear                        │    513 │ train │     0 │
+│ 5 │ criterion │ BCEWithLogitsLoss             │      0 │ train │     0 │
+└───┴───────────┴───────────────────────────────┴────────┴───────┴───────┘
+Trainable params: 721 K                                                         
+Non-trainable params: 31.7 M                                                    
+Total params: 32.4 M                                                            
+Total estimated model params size (MB): 129.562                                 
+Modules in train mode: 147                                                      
+Modules in eval mode: 175                                                       
+Total FLOPs: 0                                                                  
+/usr/local/lib/python3.12/dist-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+/usr/local/lib/python3.12/dist-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'val_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=3` in the `DataLoader` to improve performance.
+/usr/local/lib/python3.12/dist-packages/lightning/pytorch/trainer/connectors/data_connector.py:434: The 'train_dataloader' does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` to `num_workers=3` in the `DataLoader` to improve performance.
+/usr/local/lib/python3.12/dist-packages/lightning/pytorch/loops/fit_loop.py:538: Found 175 module(s) in eval mode at the start of training. This may lead to unexpected behavior during training. If this is intentional, you can ignore this warning.
+`Trainer.fit` stopped: `max_epochs=10` reached.
+Epoch 9/9  ━━━━━━━━━━━━━━━━━ 30/30 0:00:19 • 0:00:00 1.51it/s v_num: 0.000      
+                                                              train_loss: 0.037 
+                                                              val_loss: 0.172   
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 2962.24it/s]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 3168.83it/s]
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+┏━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name      ┃ Type                          ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model     │ PeftModelForFeatureExtraction │ 32.1 M │ train │     0 │
+│ 1 │ fc1       │ Linear                        │  262 K │ train │     0 │
+│ 2 │ act       │ SiLU                          │      0 │ train │     0 │
+│ 3 │ dropout   │ Dropout                       │      0 │ train │     0 │
+│ 4 │ fc2       │ Linear                        │    513 │ train │     0 │
+│ 5 │ criterion │ BCEWithLogitsLoss             │      0 │ train │     0 │
+└───┴───────────┴───────────────────────────────┴────────┴───────┴───────┘
+Trainable params: 721 K                                                         
+Non-trainable params: 31.7 M                                                    
+Total params: 32.4 M                                                            
+Total estimated model params size (MB): 129.562                                 
+Modules in train mode: 147                                                      
+Modules in eval mode: 175                                                       
+Total FLOPs: 0                                                                  
+`Trainer.fit` stopped: `max_epochs=10` reached.
+Epoch 9/9  ━━━━━━━━━━━━━━━━━ 30/30 0:00:19 • 0:00:00 1.50it/s v_num: 1.000      
+                                                              train_loss: 0.063 
+                                                              val_loss: 0.135   
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 5383.79it/s]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 3106.80it/s]
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+┏━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name      ┃ Type                          ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model     │ PeftModelForFeatureExtraction │ 32.1 M │ train │     0 │
+│ 1 │ fc1       │ Linear                        │  262 K │ train │     0 │
+│ 2 │ act       │ SiLU                          │      0 │ train │     0 │
+│ 3 │ dropout   │ Dropout                       │      0 │ train │     0 │
+│ 4 │ fc2       │ Linear                        │    513 │ train │     0 │
+│ 5 │ criterion │ BCEWithLogitsLoss             │      0 │ train │     0 │
+└───┴───────────┴───────────────────────────────┴────────┴───────┴───────┘
+Trainable params: 721 K                                                         
+Non-trainable params: 31.7 M                                                    
+Total params: 32.4 M                                                            
+Total estimated model params size (MB): 129.562                                 
+Modules in train mode: 147                                                      
+Modules in eval mode: 175                                                       
+Total FLOPs: 0                                                                  
+`Trainer.fit` stopped: `max_epochs=10` reached.
+Epoch 9/9  ━━━━━━━━━━━━━━━━━ 30/30 0:00:19 • 0:00:00 1.49it/s v_num: 2.000      
+                                                              train_loss: 0.000 
+                                                              val_loss: 0.154   
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 3039.43it/s]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 3092.56it/s]
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+┏━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name      ┃ Type                          ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model     │ PeftModelForFeatureExtraction │ 32.1 M │ train │     0 │
+│ 1 │ fc1       │ Linear                        │  262 K │ train │     0 │
+│ 2 │ act       │ SiLU                          │      0 │ train │     0 │
+│ 3 │ dropout   │ Dropout                       │      0 │ train │     0 │
+│ 4 │ fc2       │ Linear                        │    513 │ train │     0 │
+│ 5 │ criterion │ BCEWithLogitsLoss             │      0 │ train │     0 │
+└───┴───────────┴───────────────────────────────┴────────┴───────┴───────┘
+Trainable params: 721 K                                                         
+Non-trainable params: 31.7 M                                                    
+Total params: 32.4 M                                                            
+Total estimated model params size (MB): 129.562                                 
+Modules in train mode: 147                                                      
+Modules in eval mode: 175                                                       
+Total FLOPs: 0                                                                  
+`Trainer.fit` stopped: `max_epochs=10` reached.
+Epoch 9/9  ━━━━━━━━━━━━━━━━━ 30/30 0:00:19 • 0:00:00 1.52it/s v_num: 3.000      
+                                                              train_loss: 0.091 
+                                                              val_loss: 0.077   
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 2974.81it/s]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 3133.04it/s]
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
+┏━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name      ┃ Type                          ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model     │ PeftModelForFeatureExtraction │ 32.1 M │ train │     0 │
+│ 1 │ fc1       │ Linear                        │  262 K │ train │     0 │
+│ 2 │ act       │ SiLU                          │      0 │ train │     0 │
+│ 3 │ dropout   │ Dropout                       │      0 │ train │     0 │
+│ 4 │ fc2       │ Linear                        │    513 │ train │     0 │
+│ 5 │ criterion │ BCEWithLogitsLoss             │      0 │ train │     0 │
+└───┴───────────┴───────────────────────────────┴────────┴───────┴───────┘
+Trainable params: 721 K                                                         
+Non-trainable params: 31.7 M                                                    
+Total params: 32.4 M                                                            
+Total estimated model params size (MB): 129.562                                 
+Modules in train mode: 147                                                      
+Modules in eval mode: 175                                                       
+Total FLOPs: 0                                                                  
+`Trainer.fit` stopped: `max_epochs=10` reached.
+Epoch 9/9  ━━━━━━━━╸         15/30 0:00:11 • 0:00:10 1.65it/s v_num: 4.000      
+                                                              train_loss: 0.013 
+                                                              val_loss: 0.163   
+Loading weights:   0%|          | 0/145 [00:00<?, ?it/s]Loading weights: 100%|██████████| 145/145 [00:00<00:00, 2949.22it/s]
+trainable params: 458,752 || all params: 32,127,381 || trainable%: 1.4279
