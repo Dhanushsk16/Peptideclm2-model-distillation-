@@ -1,4 +1,4 @@
-# Distilling PeptideCLM-2: work log and results
+# PeptideCLM-2: distillation, then training-free compression
 
 A full account of what was done, what was measured, and what turned out to be
 wrong. Numbers here are the ones that survived re-checking; where an earlier
@@ -291,7 +291,7 @@ from cache.
 ### Representation geometry
 
 1,024 molecules, 523,776 pairs. Each model embedded in a **separate process** (see
-§8).
+§13).
 
 | model | SPKD | raw \|Δcos\| | centered | Spearman | cross-cos |
 |---|---|---|---|---|---|
@@ -374,7 +374,7 @@ lines, so whether jobs ended on patience or on the 100-epoch cap is unknown.
 
 ### Next: LoRA
 
-`distill/pampa_lora.py` and `kaggelscripts/kaggle_pampa_lora_warmstart.ipynb`
+`distill/pampa_lora.py` and `kaggelscripts/kd/kaggle_pampa_lora_warmstart.ipynb`
 implement the same protocol with the backbone **frozen** and LoRA adapters
 (r=16, α=32 on `qkv_proj`, ~2.2% of weights trainable), config lifted verbatim
 from their classification script. Head, loss, optimizer, schedule, batch size,
@@ -387,7 +387,289 @@ backbones — plausibly why the two arms landed so close above. With the trunk
 frozen, downstream performance is governed by the quality of the frozen features,
 which is exactly what distillation was supposed to improve.
 
-## 8. Corrections
+## 8. Live teacher replaces the cache
+
+The cached-target approach has a structural limit: the cache fixes one mask per
+molecule, so the student sees the same masked positions on every epoch, and the
+cache stores only top-k logits. Both were cheap approximations, and both were
+worth removing before concluding anything about distillation.
+
+`distill/train_kd.py` runs the 337M teacher **in the same process as the student**,
+in eval mode under `no_grad`, and computes targets on the fly:
+
+```
+L = (1 - alpha) * CE  +  alpha * T^2 * KL(student || teacher)     T=4, alpha=0.95
+```
+
+Full vocabulary, no top-k truncation, a fresh span mask each epoch. Effective
+weights are 0.05 hard / 15.2 soft after the `T^2` factor — this is almost purely
+an imitation objective, which is the point: it is the cleanest possible test of
+"can the student reproduce the teacher".
+
+Loading both models in one process is what exposed the rotary-buffer bug recorded
+in the corrections section. `refresh_rope()` and `verify_rope()` exist because of
+it, and `distill/test_kd.py` carries 37 checks over the pair — including one that
+measures the solo-model reference in a **fresh subprocess** rather than comparing
+against a hardcoded constant, since the original constant was measured on an
+RTX 3050 and fails on a T4 for pure numerical reasons.
+
+**Result.** 79,135 of 79,136 steps, final validation soft loss 0.00656, **93.8%
+token agreement** with the teacher. The imitation worked.
+
+Representation geometry came out *worse* than the warm-start arm, which is
+expected: this objective has no SPKD term, so nothing constrains the similarity
+structure. On the benchmark KL probe the two arms each win at their own training
+temperature — live-KD ahead at T=4, warm-start ahead at T=1 — which is a statement
+about what each was optimised for, not about which representation is better.
+
+## 9. CellPPD with LoRA: the frozen-backbone test
+
+The PAMPA runs finetuned all 31.9M student parameters, which lets the finetuner
+repair a mediocre representation and can hide differences between backbones. The
+sharper test freezes the trunk and trains only LoRA adapters, so downstream
+performance is governed by the frozen features — exactly what distillation was
+supposed to improve.
+
+Their classification script is already LoRA (r=16, α=32 on `qkv_proj`). Three
+students, three seeds, their shipped CellPPD splits, no code changes on our side:
+
+| arm | MCC (3 seeds) | mean |
+|---|---|---|
+| warm-start (undistilled starting point) | 0.8540 / 0.8471 / 0.8407 | **0.8473** |
+| treatment (cached KD + MTR + SPKD) | 0.8273 / 0.8273 / 0.8273 | 0.8273 |
+| kd-live (pure Hinton KD) | 0.8278 / 0.8278 / 0.8205 | 0.8254 |
+
+**Both distilled arms are below the model they started from.** This is the same
+direction as PAMPA, now on a different benchmark, a different task type, and with
+the backbone frozen so the result is attributable to the representation.
+
+That closes the question the project opened with. Distillation moved the student
+toward the teacher on every intrinsic measure and made it worse on every
+downstream measure tried.
+
+## 10. Why the approach changed
+
+Given a negative result on the method, the goal was re-examined rather than the
+method retuned. The goal was never "distil" — it was "make inference cheaper
+without losing capability". Distillation is one way to get there and it costs
+~16 GPU-hours per arm; the training-free compression literature claims a large
+fraction of a transformer's blocks can be deleted outright.
+
+Relevant prior work, and what each offers here:
+
+| method | what it removes | fit for this model |
+|---|---|---|
+| ShortGPT / Gromov et al. | whole blocks, ranked by block influence | direct fit; no retraining |
+| SliceGPT | hidden dimensions, via PCA on activations | needs a calibration pass and a modified forward |
+| SparseGPT / Wanda | individual weights, 2:4 structured | **no speed-up on Kaggle T4** (SM 7.5 has no 2:4 support) |
+| model merging (APM etc.) | nothing; combines checkpoints | no second checkpoint to merge |
+
+The 2:4 sparsity methods were ruled out on hardware grounds before anything was
+run: unstructured sparsity gives memory savings but no wall-clock gain without
+sparse tensor cores, and Turing has none. Of what remained, block dropping is the
+one that needs no calibration, no modified forward pass and no retraining — and
+the decision taken was explicitly **not to attempt anything novel**.
+
+One structural fact makes block dropping unusually attractive for this model:
+
+| component | share of parameters |
+|---|---|
+| FFN | 59.9% |
+| attention | 39.9% |
+| embeddings + LM head | **0.2%** (0.83M) |
+
+Each block is 10.49M parameters and the vocabulary is only 405 tokens, so
+essentially all of the model is blocks. Dropping blocks is therefore close to the
+theoretical maximum compression per unit of structural change — unlike a typical
+LLM, where a large embedding table puts a floor under it.
+
+## 11. Training-free compression
+
+### Which blocks matter
+
+Block influence, `BI_i = 1 - E[cos(x_in, x_out))]`, measured over 120 THPep
+molecules (`distill/probe_bi.py`):
+
+| block | BI |
+|---|---|
+| 0 | 0.762 |
+| 31 | 0.604 |
+| 30 | 0.022 |
+| 29 | 0.015 |
+| 28 | 0.014 |
+| 1 | 0.013 |
+| 8, 9, 10, 11, 12, 13, 15 | **0.002** |
+
+Two blocks do almost all of the work. The middle of the network barely rotates its
+residual stream at all — blocks 8–15 change direction by roughly 0.1°.
+
+### Which region matters
+
+BI is a local measure and says nothing about whether a region can be removed
+*together*. Three 16-block slices, each finetuned on THPep (`slice_probe`):
+
+| slice | blocks | MCC |
+|---|---|---|
+| prefix16 | 0–15 | **0.8531** |
+| mid16 | 8–23 | 0.6379 |
+| suffix16 | 16–31 | 0.5593 |
+
+A prefix is not optional. Cutting the first blocks costs more than everything else
+combined — consistent with block 0's BI of 0.762, and with a seam-mismatch check
+finding a **39.6×** residual-norm ratio at the suffix16 cut.
+
+### Depth sweep
+
+`compress_bench`, THPep, seed 101:
+
+| arm | blocks | MB | MCC |
+|---|---|---|---|
+| full 337M | 32 | 1346.7 | 0.7764 |
+| trunc31 | 31 | 1304.7 | 0.7642 |
+| trunc24 | 24 | 1010.9 | 0.8218 |
+| **trunc16** | 16 | 675.0 | **0.8531** |
+| trunc8 | 8 | 339.2 | 0.8037 |
+| warm-start 32M | 14 | 126.7 | 0.8431 |
+
+Shallower is *better* than the full model down to 16 blocks. The last blocks are
+specialised for the masked-language-modelling objective and actively unhelpful for
+a classification head — which is why truncation is not merely tolerable here.
+
+### Block selection
+
+Keeping a prefix is necessary but not sufficient; the BI scores say blocks 8–15
+are the cheapest to drop. The selection tested was **0, 1, 2, 3, 5, 6, 10, 16** —
+a prefix plus two interior blocks plus the block that begins the second half.
+
+`bi_confirm`, AmpHGT, seed 101, against the naive first-8 truncation:
+
+| arm | kept blocks | MCC | AUROC |
+|---|---|---|---|
+| bisel8 | 0,1,2,3,5,6,10,16 | **0.8511** | 0.9719 |
+| trunc8 | 0–7 | 0.8453 | 0.9697 |
+
+A real but small margin at one seed. The honest reading is that BI-guided
+selection is *not clearly better* than taking the first eight blocks — the
+earlier THPep margin of +0.0439 did not replicate on AmpHGT, where the confidence
+interval straddles zero. What the probes established firmly is the **region**, not
+the precise block set.
+
+### Export
+
+`distill/export_truncated.py` writes a depth-reduced HuggingFace directory,
+renumbering the kept blocks into a contiguous checkpoint. It verifies two ways:
+
+1. **Without any forward pass** — compares kept tensors byte-for-byte against the
+   source under the renumbering, so the mapping is proven independently of
+   inference.
+2. **With a forward pass** — loads both models, refreshes and verifies the rotary
+   buffers on both, then compares outputs. This second check initially reported a
+   0.9019 cosine mismatch and it was the rotary bug again, not a bad export.
+
+Result: 336.7M → **84.8M parameters, 4.0×**, no training, no calibration data.
+
+## 12. Do the two models fail on the same molecules?
+
+Asked by the supervisor after seeing the benchmark table: if the compressed model
+scores similarly, does it make the *same mistakes*?
+
+A molecule counts as an error for a model if it is misclassified in a majority of
+that model's three runs. Per-seed flags would conflate model behaviour with seed
+noise — the teacher's AmpHGT error count alone ranges 290 to 401 across seeds.
+
+| benchmark | teacher wrong | student wrong | both | expected | enrichment | κ |
+|---|---|---|---|---|---|---|
+| AmpHGT | 349 | 437 | 233 | 29.8 | **7.8×** | 0.559 |
+| CellPPD | 16 | 34 | 8 | 1.9 | 4.3× | 0.265 |
+| PepMSND | 116 | 93 | 72 | 16.9 | 4.3× | 0.629 |
+
+The student inherits the teacher's hard cases rather than failing in a new way.
+
+**AmpHGT chemistry.** Comparing the 210 shared false positives against the 1,974
+inactives both models reject correctly — same true label, so the only difference is
+that the models fell for one group:
+
+| feature | shared FP | correctly rejected | actives |
+|---|---|---|---|
+| heavy atoms | 237 | 407 | 115 |
+| Arg | 2.33 | 2.82 | 1.06 |
+| Lys | 2.48 | 2.56 | 2.37 |
+| Asp/Glu | **3.52** | **8.86** | 0.73 |
+| net charge | +1.29 | −3.48 | +2.69 |
+| logP per atom | −5.83 | −5.44 | −1.93 |
+
+Correlation of each model's score with each feature, across the 2,452 inactives:
+
+| feature | teacher | student |
+|---|---|---|
+| heavy atoms | −0.47 | **−0.64** |
+| net charge | +0.38 | +0.46 |
+| logP per atom | −0.02 | −0.17 |
+
+Size is the strongest driver — 97% of actives are under 250 heavy atoms against 6%
+of correctly-rejected inactives, so "large means inactive" is nearly free accuracy
+and both models took it. The errors sit at 237 atoms, where that shortcut fails.
+
+Charge is second, and the mechanism is specific: the shared false positives are
+**not more cationic** — Arg and Lys match the correctly-rejected group. They carry
+less than half the acidic residues, which is what turns net charge positive. The
+models respond to the *absence of negative charge*, not the presence of positive.
+
+Hydrophobicity contributes nothing. That is the part that matters biologically:
+antimicrobial activity needs positive charge to bind the anionic bacterial
+membrane **and** a hydrophobic face to insert into it. Cationic-but-hydrophilic
+peptides bind the surface without killing, and that is exactly what both models
+fall for.
+
+One limit this cannot resolve: whether the models respond to size and charge as
+chemistry, or whether both are proxies for "short peptide rather than large
+glycoconjugate", which is largely what separates the classes in this dataset.
+
+**CellPPD** has only 8 shared errors, too few to characterise; the five shared
+false negatives are arginine-poor (0.60 vs 3.84) and tryptophan-rich (1.20 vs
+0.50), which fits Trp-driven cell-penetrating peptides rather than the canonical
+Arg-rich route. A hypothesis at n=5.
+
+**PepMSND** gets no chemical interpretation: the shared errors sit outside the
+range spanned by the two classes rather than between them, and the meaning of the
+label is not documented in the repository or in our copy of the paper.
+
+**THPep cannot be paired at all.** The repository ships no THPep split, so ours was
+generated (stratified 80/20, 487 train / 122 test, 35 positive, 5-fold CV
+ensembled by mean logit). Their shipped predictions carry no fold column — a
+single train/test run against a validation file. Same benchmark and the same test
+size and class balance, different molecules.
+
+Writeup for the supervisor: `docs/shared_error_analysis.docx`, generated by
+`distill/make_error_doc.py`. Because that script carries its tables as string
+literals, `distill/verify_error_doc.py` re-derives all 53 numbers from the data and
+exits non-zero on drift.
+
+### Inference cost
+
+`distill/bench_latency.py`, 300 CellPPD test molecules (28,464 tokens, mean 135
+heavy atoms), fp32, batch 16, each model in its own process, 5 timed passes after
+warm-up:
+
+| | teacher | student | ratio |
+|---|---|---|---|
+| parameters | 336.7M | 84.8M | 4.0× |
+| latency | 44.1 ms/molecule | 11.1 ms/molecule | **4.0×** |
+| throughput | 22.7 mol/s | 89.8 mol/s | 4.0× |
+| peak GPU memory | 1,528 MB | 556 MB | 2.8× |
+| fine-tune, one CellPPD seed (T4) | 87 min | 31 min | 2.8× |
+
+Run-to-run spread under 1%. The speed-up matching the parameter ratio means the
+compression converts to wall-clock at full efficiency, with no fixed overhead
+eating into it. Memory gains less because embeddings and activations do not shrink
+with depth; fine-tuning gains less because LoRA trains an identical 1.6M
+parameters in both models, so only the frozen-backbone passes get cheaper.
+
+Inference was measured on an RTX 3050 and fine-tuning on a T4 — each row compares
+the two models on the same GPU as each other, but the rows are not on the same
+hardware as one another.
+
+## 13. Corrections
 
 Recorded because they changed conclusions.
 
@@ -417,7 +699,7 @@ conditions. With the model dtype verified before and after: max logit difference
 
 ---
 
-## 9. Reproducibility notes
+## 14. Reproducibility notes
 
 Issues in the released repository that must be worked around:
 
@@ -440,33 +722,72 @@ Issues in the released repository that must be worked around:
 
 ---
 
-## 10. Where it stands
+## 15. Where it stands
 
-Distillation transfers the teacher's behaviour. That is established three
-independent ways — cached targets, live teacher on training molecules, and live
-teacher on four held-out benchmark sets — and the control arm rules out "more
-training" as the explanation.
+Two approaches were tried against one goal — cheaper inference without losing
+capability. The first failed and the second worked, and the second is cheaper to
+run than the first was to train.
 
-It has not been shown to make the student **better at anything**. PAMPA has now
-been run at two training budgets, and the distilled model is behind its own
-starting point on both held-out clusters in both runs. The undertraining
-explanation is ruled out.
+**Distillation transfers behaviour and not capability.** That the student moved
+toward the teacher is established four independent ways: cached targets, a live
+teacher on training molecules, a live teacher on four held-out benchmark sets
+(KL down 1.8x-4.3x), and 93.8% token agreement under pure Hinton KD. The control
+arm rules out "more training" as the explanation.
 
-So the current finding is a negative one, and a fairly clean one: matching a larger
-model's token distributions and representation geometry is **not sufficient** to
-transfer its downstream capability, at least on this task at this scale. Every
-intrinsic measure says the student moved toward the teacher; the benchmark says it
-gained nothing by doing so.
+That it gained nothing is established two ways, on different tasks. PAMPA at two
+training budgets put the distilled arms behind their own starting point on both
+held-out clusters. CellPPD with the backbone frozen put them behind again --
+0.8273 and 0.8254 against the warm-start's 0.8473 -- which is the sharper test,
+because with only LoRA adapters trainable the representation is what is being
+measured rather than the finetuner's ability to repair it.
+
+So: matching a larger model's token distributions and representation geometry is
+**not sufficient** to transfer its downstream capability, at this scale on these
+tasks. The result is negative and fairly clean.
+
+**Deleting blocks works, at 4.0x, with no training at all.** Keeping 8 of 32
+blocks gives a model that is ahead of the teacher on two benchmarks, behind on
+two, and 4.0x faster at inference. The two losses come with context: CellPPD is
+weakly discriminative (a bag-of-tokens control scores 0.827 there), and AmpHGT's
+-0.047 is the one clean loss in the set.
+
+The depth sweep says something the compression literature would not predict: the
+full 32-block model is *worse* on THPep than truncations at 16 and 24 blocks. The
+last blocks are specialised for the pretraining objective and actively unhelpful
+downstream. Compression here is not purely a trade -- part of it is removing
+machinery that was never useful for these tasks.
+
+Honest limits on the compression result:
+
+- **BI-guided selection is not clearly better than naive truncation.** bisel8 beat
+  trunc8 by 0.0058 MCC at one AmpHGT seed, and the earlier THPep margin of +0.0439
+  did not replicate. What the probes established firmly is the *region* to keep,
+  not the exact block set. A reader should treat "8 blocks including a prefix" as
+  the finding and "0,1,2,3,5,6,10,16" as one instance of it.
+- **PAMPA was never run for the compressed model.** It is the benchmark the
+  distillation phase was judged on, and the full protocol is 30 training runs per
+  seed (~20 GPU-hours). Until it is run, the two phases are not compared on
+  common ground.
+- **THPep's +0.077 spans a protocol difference** -- their single split against our
+  5-fold ensemble -- and 5-fold ensembling generally helps. Some of that margin is
+  method, not model.
+- **One seam, one calibration set.** Block influence was measured on 120 THPep
+  molecules. A different calibration set could rank the middle blocks differently,
+  though not plausibly enough to move blocks 0 and 31 out of first place.
 
 What would sharpen it, in order:
 
-1. **LoRA evaluation** (code ready). With the backbone frozen, representation
-   quality is what is actually being measured, rather than the finetuner's ability
-   to repair it.
-2. **≥3 seeds.** Cluster 1's run-to-run spread in the authors' own data is ±0.38 R²,
-   so single-seed differences there carry little weight.
-3. **THPep and AmpHGT**, where the teacher's margin over fingerprint baselines is
-   largest and the distillation signal was strongest (KL 4.3× and 2.1×
-   respectively, versus 1.8× on PAMPA).
-4. **Reconcile cluster 6 against their published 0.500** using identical weights,
-   which would tell us whether our absolute numbers can be quoted at all.
+1. **PAMPA on the compressed model.** The one benchmark where both phases could be
+   compared directly, and the one with a published number to check against.
+2. **Re-run block selection on a second calibration set.** If the kept set changes
+   materially, the BI ranking is measuring the calibration data as much as the
+   model.
+3. **Test the threshold-shift hypothesis on AmpHGT.** Both models are
+   FP-skewed and the student more so; if its -0.047 is mostly a shifted operating
+   point rather than a worse representation, a recalibrated threshold recovers it.
+   AUROC 0.9711 against 0.9804 suggests the ranking survives better than the
+   thresholded metric does.
+4. **Reconcile PAMPA cluster 6 against their published 0.500** using identical
+   weights, which would tell us whether our absolute regression numbers can be
+   quoted at all. This is unfinished business from the distillation phase and
+   still open.
