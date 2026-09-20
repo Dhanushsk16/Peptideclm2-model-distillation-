@@ -1,0 +1,6 @@
+model_name: /kaggle/working/compressed/peptideclm-2-mlm-bisel8
+kan_input_dim: 140
+backbone_learning_rate: 7.0e-06
+head_learning_rate: 0.0007
+freeze_backbone_epochs: 2
+dropout: 0.1

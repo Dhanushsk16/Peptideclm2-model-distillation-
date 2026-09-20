@@ -1,0 +1,39 @@
+Seed set to 303
+[INFO] Learning rates: backbone_lr=7.00e-06, head_lr=7.00e-04
+[INFO] freeze_backbone_epochs=2
+[INFO] KAN input dim: 140 (descriptors_only)
+Loading weights:   0%|          | 0/85 [00:00<?, ?it/s]Loading weights: 100%|██████████| 85/85 [00:00<00:00, 2969.83it/s]
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+┏━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name       ┃ Type                ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ backbone   │ MLM_model           │ 84.8 M │ eval  │     0 │
+│ 1 │ seq_proj   │ Sequential          │  131 K │ train │     0 │
+│ 2 │ kan_branch │ PaperStyleKANBranch │  343 K │ train │     0 │
+│ 3 │ fusion_fc1 │ KANLinear           │  655 K │ train │     0 │
+│ 4 │ fusion_bn  │ BatchNorm1d         │    512 │ train │     0 │
+│ 5 │ fusion_fc2 │ KANLinear           │  163 K │ train │     0 │
+│ 6 │ out_fc     │ KANLinear           │    660 │ train │     0 │
+│ 7 │ relu       │ ReLU                │      0 │ train │     0 │
+│ 8 │ dropout    │ Dropout             │      0 │ train │     0 │
+│ 9 │ loss_fn    │ BCEWithLogitsLoss   │      0 │ train │     0 │
+└───┴────────────┴─────────────────────┴────────┴───────┴───────┘
+Trainable params: 86.1 M                                                        
+Non-trainable params: 0                                                         
+Total params: 86.1 M                                                            
+Total estimated model params size (MB): 344.346                                 
+Modules in train mode: 20                                                       
+Modules in eval mode: 103                                                       
+Total FLOPs: 0                                                                  
+/usr/local/lib/python3.12/dist-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+/usr/local/lib/python3.12/dist-packages/lightning/pytorch/loops/fit_loop.py:538: Found 103 module(s) in eval mode at the start of training. This may lead to unexpected behavior during training. If this is intentional, you can ignore this warning.
+Epoch 49/119 ━━━━━━━━━━━━━━━━ 18/18 0:00:41 • 0:00:00 0.42it/s v_num: 0.000     
+                                                               val_loss: 1.136  
+                                                               val_mcc_best:    
+                                                               0.581 train_loss:
+                                                               0.060            
+Loading weights:   0%|          | 0/85 [00:00<?, ?it/s]Loading weights: 100%|██████████| 85/85 [00:00<00:00, 2935.98it/s]
+[INFO] Saved predictions: /kaggle/working/results/bisel8_sweep/pepmsnd/seed_303/fold_8/preds_fold8.csv

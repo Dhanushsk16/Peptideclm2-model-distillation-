@@ -1,0 +1,9 @@
+benchmark,model,params_M,seeds,mcc_mean,mcc_sd,auc_mean,delta_vs_teacher,comparable
+AmpHGT,bisel8,84.8,3,0.8374,0.0124,0.9711,-0.0471,yes
+AmpHGT,peptideclm-2-mlm-large,336.7,3,0.8845,0.0129,0.9804,0.0,yes
+PepMSND,bisel8,84.8,3,0.6548,0.0252,0.8855,0.0368,yes
+PepMSND,peptideclm-2-mlm-large,336.7,3,0.618,0.0034,0.8669,0.0,yes
+THPep,bisel8,84.8,3,0.8329,0.0127,0.9685,0.0772,partial
+THPep,peptideclm-2-mlm-large,336.7,3,0.7557,0.0194,0.949,0.0,partial
+CellPPD,bisel8,84.8,3,0.7735,0.0068,0.9447,-0.1015,no
+CellPPD,peptideclm-2-mlm-large,336.7,3,0.875,0.0036,0.981,0.0,no

@@ -1,0 +1,15 @@
+# 4.0X COMPRESSION -- teacher 336.7M params (32 blocks) -> student 84.8M (8 blocks: 0,1,2,3,5,6,10,16), training-free
+# METRIC: MCC (Matthews correlation coefficient), higher is better, range -1..1.
+# mcc_run1/run2/run3 are the three runs; delta_vs_teacher = student MCC minus teacher MCC. auc_mean is AUROC, shown for reference only.
+benchmark,model,params_M,n_test,mcc_run1,mcc_run2,mcc_run3,mcc_mean,mcc_sd,auc_mean,delta_vs_teacher
+AmpHGT,teacher_model,336.7,,0.8985,0.8817,0.8732,0.8844,0.0129,0.9804,
+AmpHGT,student_model,84.8,5148,0.8511,0.8269,0.8341,0.8374,0.0124,0.9711,-0.0471
+,,,,,,,,,,
+PepMSND,teacher_model,336.7,640,0.6209,0.6188,0.6142,0.618,0.0035,0.8669,
+PepMSND,student_model,84.8,640,0.6837,0.6436,0.6371,0.6548,0.0252,0.8855,0.0368
+,,,,,,,,,,
+THPep,teacher_model,336.7,,0.7419,0.7779,0.7474,0.7557,0.0194,0.949,
+THPep,student_model,84.8,122,0.8476,0.8256,0.8256,0.8329,0.0127,0.9685,0.0772
+,,,,,,,,,,
+CellPPD,teacher_model,336.7,,0.876,0.878,0.8711,0.875,0.0036,0.981,
+CellPPD,student_model,84.8,300,0.7804,0.7734,0.7668,0.7736,0.0068,0.9447,-0.1015
