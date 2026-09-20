@@ -38,3 +38,7 @@ venv/
 .DS_Store
 Thumbs.db
 kaggelscripts/kaggle_align_gcpnet_ema.ipynb
+
+# Archives Word lock files, and the 3.4GB depth-embedding export
+*.zip
+~$*

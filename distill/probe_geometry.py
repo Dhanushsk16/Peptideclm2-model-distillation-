@@ -25,8 +25,8 @@ TMP = os.path.join(R, "tmp_probe")
 os.makedirs(TMP, exist_ok=True)
 INIT = glob.glob(R + "/models/models--aaronfeller--peptideclm-2-mlm-small/snapshots/*")[0]
 TEACH = glob.glob(R + "/models/models--aaronfeller--peptideclm-2-mlm-large/snapshots/*")[0]
-CK = R + "/results/distill/%s/latest.pt"
-KD_LIVE = R + "/results/kd_live/student_final.pt"
+CK = R + "/results/kd/distill/%s/latest.pt"
+KD_LIVE = R + "/results/kd/kd_live/student_final.pt"
 
 # (extra CLI args for probe_embed.py) -- teacher is a plain HF dir, students need
 # --init and optionally --ckpt.

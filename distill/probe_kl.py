@@ -39,13 +39,13 @@ from transformers import AutoTokenizer
 R = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 INIT = glob.glob(R + "/models/models--aaronfeller--peptideclm-2-mlm-small/snapshots/*")[0]
 TEACH = glob.glob(R + "/models/models--aaronfeller--peptideclm-2-mlm-large/snapshots/*")[0]
-CK = R + "/results/distill/%s/latest.pt"
+CK = R + "/results/kd/distill/%s/latest.pt"
 
 MODELS = {
     "warm-start": None,                       # their released 32M, untouched
     "treatment": CK % "treatment",            # cached KD + MTR + SPKD
     "control": CK % "control",                # same schedule, no teacher
-    "kd-live": R + "/results/kd_live/student_final.pt",   # pure Hinton KD, live
+    "kd-live": R + "/results/kd/kd_live/student_final.pt",   # pure Hinton KD, live
 }
 
 BENCH = {
@@ -198,7 +198,7 @@ def main():
     for b in BENCH:
         print("%-10s " % b + "".join("%12.4f" % out[b][n]["agree"] for n in names))
 
-    dest = os.path.join(R, "results", "probe_kl.json")
+    dest = os.path.join(R, "results", "kd", "probe_kl.json")
     json.dump(out, open(dest, "w"), indent=1)
     print("\nwrote " + dest)
 
