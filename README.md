@@ -30,7 +30,7 @@ markedly weaker. **Can the gap be closed without paying for 337M parameters?**
 | method | train a 32M student against the teacher | drop 24 of 32 blocks, keep the rest bit-identical |
 | cost | ~16 GPU-hours per arm | none |
 | size | 336.7M → 31.9M (10.5×) | 336.7M → 84.8M (4.0×) |
-| downstream | **behind its own starting point** | **±0.05 MCC on 3 of 4 benchmarks** |
+| downstream | **behind its own starting point** | **+0.077 / +0.037 / −0.047 / −0.102 MCC** |
 
 ### 1. Distillation — the negative result
 
